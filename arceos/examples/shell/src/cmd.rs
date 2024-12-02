@@ -1,5 +1,8 @@
 use std::fs::{self, File, FileType};
 use std::io::{self, prelude::*};
+use std::os::arceos::api::fs::ax_write_file_at;
+use std::os::arceos::modules::axfs::fops;
+use std::string::ToString;
 use std::{string::String, vec::Vec};
 
 #[cfg(all(not(feature = "axstd"), unix))]
@@ -27,6 +30,8 @@ const CMD_TABLE: &[(&str, CmdHandler)] = &[
     ("pwd", do_pwd),
     ("rm", do_rm),
     ("uname", do_uname),
+    ("rename",do_rename),
+    ("mv",do_mv),
 ];
 
 fn file_type_to_char(ty: FileType) -> char {
@@ -65,7 +70,52 @@ const fn file_perm_to_rwx(mode: u32) -> [u8; 9] {
     set!(8, b'r'); set!(7, b'w'); set!(6, b'x');
     perm
 }
-
+//I've been misled by the OpenOptions for a long, long time. 
+fn do_rename(args:&str){
+    let current_dir=std::env::current_dir().unwrap();
+    let num_count=args.split_whitespace().count();
+    if num_count==2{
+       let mut iter=args.split_whitespace();
+       let mut path=iter.next().unwrap();
+       let name=iter.next().unwrap();
+       println!("path={} \nname={}",path,name);
+       fs::rename(path, name).unwrap_or_else(|e| print_err!("rename",path,e));
+       
+    }
+    else{
+        println!("fault args in rename");
+    }
+}
+fn do_mv(args:&str){
+    let current_dir=std::env::current_dir().unwrap();
+    let num_count=args.split_whitespace().count();
+    if num_count==2{
+        let mut iter=args.split_whitespace();
+        let mut path=iter.next().unwrap();
+        let name=iter.next().unwrap();
+        let isf =fs::metadata(path).unwrap().is_file();
+        if isf{
+           
+            let size=fs::metadata(path).unwrap().size();
+            let buf=fs::read(path).unwrap();
+            let ospath = name.to_string()+"/"+path;
+            println!("ops={},path={},name={}",ospath,path,name);
+            let mut a=File::create(&ospath).unwrap();
+            a.write_all( &mut buf.as_ref());
+            fs::remove_file(path);
+        }
+        else{
+            print_err!("mv,path={},err=Unsupported=Recursive directory creation is not support
+            ed yet",path);
+            
+            
+        }
+        
+     }
+     else{
+         println!("fault args in rename");
+     }
+}
 fn do_ls(args: &str) {
     let current_dir = std::env::current_dir().unwrap();
     let args = if args.is_empty() {
